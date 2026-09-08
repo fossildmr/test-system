@@ -42,8 +42,8 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);fon
 .role-admin{background:#fff3e0;color:#e65100}
 .role-user{background:var(--info-light);color:var(--info)}
 .role-executive{background:#f3e8fd;color:#7b2cbf}
-.role-staff{background:var(--info-light);color:var(--info)}
-.role-owner{background:var(--success-light);color:var(--success)}
+.role-officer{background:var(--info-light);color:var(--info)}
+.role-projectowner{background:var(--success-light);color:var(--success)}
 .assigned-proj-box{border:1px solid var(--border);border-radius:8px;padding:10px;max-height:220px;overflow-y:auto;background:#f9fafb;}
 .assigned-proj-box label{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;padding:5px 4px;border-radius:6px;cursor:pointer;}
 .assigned-proj-box label:hover{background:#fff;}
@@ -1059,8 +1059,8 @@ select.form-control{cursor:pointer}
         <select class="form-control" id="uRole" onchange="onURoleChange()">
           <option value="admin">👑 ผู้ดูแลระบบ (Admin)</option>
           <option value="executive">🏛️ ผู้บริหาร/คณะกรรมการ</option>
-          <option value="staff">📋 เจ้าหน้าที่ (กคบ.)</option>
-          <option value="owner">👤 เจ้าของโครงการ</option>
+          <option value="officer">📋 เจ้าหน้าที่ (กคบ.)</option>
+          <option value="projectowner">👤 เจ้าของโครงการ</option>
         </select>
         <p id="uRoleHint" style="font-size:11.5px;color:var(--text-muted);margin-top:5px;line-height:1.5;"></p>
       </div>
@@ -1133,9 +1133,9 @@ select.form-control{cursor:pointer}
 // ═══════════════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════════════
-const APP_URL = 'https://script.google.com/macros/s/AKfycbxo6CQ4o-zKUr4lJx_kkrIk4KYROMuJ-2B-DjXTWgEJTeAjlDwSUXPCqzLvBa5mBUUP/exec';
-const SHEET_ID = '1rzMYWZBkm3F5izAZ3unJpYgUY8fo7ynNx-s_YgRwyK0';
-const DRIVE_FOLDER = '1oZq2u-af3XTNBf-l4n1iuzWdgatkMFVT';
+const APP_URL = 'https://script.google.com/macros/s/AKfycbyR33E4ke86yVY0R2ZV212vVranMarHxE6ouH9pDaLolituQHqNo_53H3g1ZsKHi1hV/exec';
+const SHEET_ID = 'Xs9hhHaEaKHP0XVUCFh-h_nHW9CDS7t0A8-_xs';
+const DRIVE_FOLDER = '1-Fx3ZzRXary7lyoxcj8xqliGo-OZUJwM';
 const GAS_URL = APP_URL;
 const API_URL = APP_URL;
 
@@ -1173,28 +1173,31 @@ function checkSession(){
   }catch(e){localStorage.removeItem('fossilSession');return false;}
 }
 function isAdmin(){return CURRENT_USER&&CURRENT_USER.role==='admin';}
-// ★ ระบบสิทธิ์ 3 ระดับ (นอกเหนือจาก admin):
-//   executive = ผู้บริหาร/คณะกรรมการ  → เห็นทุกโครงการ, แก้ไข/อัพเดตไม่ได้เลย
-//   staff     = เจ้าหน้าที่ (กคบ.)     → เห็นทุกโครงการ, แก้ไข/อัพเดตได้เฉพาะโครงการที่รับผิดชอบ (assignedProjects)
-//   owner     = เจ้าของโครงการ         → เห็น/แก้ไขได้เฉพาะโครงการที่รับผิดชอบ (assignedProjects) เท่านั้น
-// รองรับ role เดิม 'user' (ก่อนอัพเดตฟีเจอร์นี้) ให้พฤติกรรมเหมือนเดิม (เห็นตามหน่วยงาน,แก้ไขได้)
-const ROLE_LABELS={admin:'👑 ผู้ดูแลระบบ',executive:'🏛️ ผู้บริหาร/คณะกรรมการ',staff:'📋 เจ้าหน้าที่ (กคบ.)',owner:'👤 เจ้าของโครงการ',user:'👤 ผู้ใช้งานทั่วไป'};
-const ROLE_HINTS={admin:'ควบคุมระบบทั้งหมด จัดการบัญชี/โครงการ/ตั้งค่าได้ทุกอย่าง',executive:'มองเห็นความคืบหน้าได้ทุกโครงการ แต่ไม่สามารถแก้ไขหรืออัพเดตข้อมูลได้',staff:'มองเห็นความคืบหน้าได้ทุกโครงการ และแก้ไข/อัพเดตได้เฉพาะโครงการที่กำหนดไว้ด้านล่าง',owner:'มองเห็นและแก้ไข/อัพเดตได้เฉพาะโครงการที่กำหนดไว้ด้านล่างเท่านั้น (ไม่เห็นโครงการอื่นแม้หน่วยงานเดียวกัน)'};
-function roleLabel(role){return ROLE_LABELS[role]||ROLE_LABELS.user;}
-function roleBadgeClass(role){return role==='admin'?'role-admin':role==='executive'?'role-executive':role==='staff'?'role-staff':role==='owner'?'role-owner':'role-user';}
-// ★ รายชื่อ id โครงการที่ user คนนี้ "รับผิดชอบ" โดยตรง (สำหรับ role staff/owner)
-function myAssignedProjectIds(){return (CURRENT_USER&&Array.isArray(CURRENT_USER.assignedProjects))?CURRENT_USER.assignedProjects.map(String):[];}
-// ★ ใช้เห็น "ทุกโครงการ" ในระบบ (แถบตาราง/แดชบอร์ด) — admin, executive, staff เห็นทั้งหมด; owner เห็นเฉพาะที่ได้รับมอบหมาย
-function canSeeAllProjects(){if(!CURRENT_USER)return false;return ['admin','executive','staff'].includes(CURRENT_USER.role);}
-// ★ ใช้ตรวจว่า "แก้ไข/อัพเดตความคืบหน้า" โครงการนี้ได้ไหม
+// ★ ระบบสิทธิ์ RBAC 4 ระดับ (ตรงกับ Apps Script backend: normalizeRole / roleToSheetValue / checkEditPermission):
+//   admin        = ผู้ดูแลระบบ         → ทำได้ทุกอย่าง
+//   executive    = ผู้บริหาร/คณะกรรมการ → เห็นทุกโครงการ, แก้ไข/อัพเดตไม่ได้เลย
+//   officer      = เจ้าหน้าที่ (กคบ.)   → เห็นทุกโครงการ, แก้ไข/อัพเดตได้เฉพาะโครงการที่ถูกกำหนดสิทธิ์ (Sheet UserAccess, CanEdit=true)
+//   projectowner = เจ้าของโครงการ       → เห็น/แก้ไขได้เฉพาะโครงการที่ถูกกำหนดสิทธิ์ (Sheet UserAccess, CanView/CanEdit=true) เท่านั้น
+// สิทธิ์รายโครงการเก็บอยู่ใน Sheet "UserAccess" (ไม่ใช่ field บน User) — ได้มาจาก apiGetAll() เป็น DB.userAccessMap
+//   รูปแบบ: { userId: { projectId: {canView:bool, canEdit:bool} } }
+const ROLE_LABELS={admin:'👑 ผู้ดูแลระบบ',executive:'🏛️ ผู้บริหาร/คณะกรรมการ',officer:'📋 เจ้าหน้าที่ (กคบ.)',projectowner:'👤 เจ้าของโครงการ'};
+const ROLE_HINTS={admin:'ควบคุมระบบทั้งหมด จัดการบัญชี/โครงการ/ตั้งค่าได้ทุกอย่าง',executive:'มองเห็นความคืบหน้าได้ทุกโครงการ แต่ไม่สามารถแก้ไขหรืออัพเดตข้อมูลได้',officer:'มองเห็นความคืบหน้าได้ทุกโครงการ และแก้ไข/อัพเดตได้เฉพาะโครงการที่กำหนดไว้ด้านล่าง',projectowner:'มองเห็นและแก้ไข/อัพเดตได้เฉพาะโครงการที่กำหนดไว้ด้านล่างเท่านั้น (ไม่เห็นโครงการอื่นแม้หน่วยงานเดียวกัน)'};
+function roleLabel(role){return ROLE_LABELS[role]||ROLE_LABELS.projectowner;}
+function roleBadgeClass(role){return role==='admin'?'role-admin':role==='executive'?'role-executive':role==='officer'?'role-officer':'role-projectowner';}
+// ★ สิทธิ์ทั้งหมดที่ user ปัจจุบันได้รับมอบหมาย จาก DB.userAccessMap (Sheet UserAccess)
+function myAccessMap(){return (CURRENT_USER&&DB.userAccessMap&&DB.userAccessMap[String(CURRENT_USER.id)])||{};}
+// ★ ใช้เห็น "ทุกโครงการ" ในระบบ (แถบตาราง/แดชบอร์ด) — admin, executive, officer เห็นทั้งหมด; projectowner เห็นเฉพาะที่ CanView=true
+function canSeeAllProjects(){if(!CURRENT_USER)return false;return ['admin','executive','officer'].includes(CURRENT_USER.role);}
+// ★ ใช้ตรวจว่า "แก้ไข/อัพเดตความคืบหน้า" โครงการนี้ได้ไหม (สอดคล้องกับ checkEditPermission ฝั่ง Apps Script)
 function canEditProject(p){
   if(!CURRENT_USER||!p)return false;
   if(CURRENT_USER.role==='admin')return true;
   if(CURRENT_USER.role==='executive')return false;
-  if(CURRENT_USER.role==='staff'||CURRENT_USER.role==='owner'){
-    return myAssignedProjectIds().includes(String(p.id));
+  if(CURRENT_USER.role==='officer'||CURRENT_USER.role==='projectowner'){
+    const acc=myAccessMap()[String(p.id)];
+    return !!(acc&&acc.canEdit);
   }
-  return true; // legacy role 'user' — เหมือนพฤติกรรมเดิม (แก้ไขได้ตามหน่วยงาน)
+  return true; // legacy role เดิม — เหมือนพฤติกรรมเดิม (แก้ไขได้ตามหน่วยงาน)
 }
 function applyRoleUI(){
   if(!CURRENT_USER)return;
@@ -1208,7 +1211,7 @@ function applyRoleUI(){
   // ★ ผู้บริหาร/คณะกรรมการ แก้ไข/อัพเดตอะไรไม่ได้เลย → ซ่อนแท็บ "กรอกความคืบหน้า"
   const updTab=document.getElementById('updateTab');if(updTab)updTab.style.display=(CURRENT_USER.role==='executive')?'none':'';
   // ★ เจ้าของโครงการ ไม่เห็นโครงการอื่นในระบบแม้แต่ข้อมูลพื้นฐาน → ซ่อนตาราง "โครงการอื่นๆ ในระบบ"
-  const otherSec=document.getElementById('otherProjectsSection');if(otherSec)otherSec.style.display=(CURRENT_USER.role==='owner')?'none':'';
+  const otherSec=document.getElementById('otherProjectsSection');if(otherSec)otherSec.style.display=(CURRENT_USER.role==='projectowner')?'none':'';
   const rep=document.getElementById('updReporter');if(rep)rep.value=CURRENT_USER.displayName;
 }
 
@@ -1321,7 +1324,7 @@ let DB={
   plans:['แผนปฏิบัติการ เรื่องที่ 1: การสำรวจ ศึกษา วิจัยแหล่งซากดึกดำบรรพ์และซากดึกดำบรรพ์','แผนปฏิบัติการ เรื่องที่ 2: การบริหารจัดการแหล่งซากดึกดำบรรพ์และซากดึกดำบรรพ์','แผนปฏิบัติการ เรื่องที่ 3: การพัฒนาแหล่งเรียนรู้ด้านซากดึกดำบรรพ์','แผนปฏิบัติการ เรื่องที่ 4: การพัฒนากฎหมาย'],
   strategies:[],
   indicators:['เป้าหมาย/ตัวชี้วัดที่ 1.1','เป้าหมาย/ตัวชี้วัดที่ 1.2','เป้าหมาย/ตัวชี้วัดที่ 1.3','เป้าหมาย/ตัวชี้วัดที่ 2.1','เป้าหมาย/ตัวชี้วัดที่ 3.1','เป้าหมาย/ตัวชี้วัดที่ 3.2','เป้าหมาย/ตัวชี้วัดที่ 4.1'],
-  alertEmails:[],alertOnStatuses:['ต่ำกว่าแผน','ล่าช้า','วิกฤติ'],users:[],lastUpdated:null
+  alertEmails:[],alertOnStatuses:['ต่ำกว่าแผน','ล่าช้า','วิกฤติ'],users:[],userAccessMap:{},lastUpdated:null
 };
 let pendingFiles={};// keyed by quarter: {1:[], 2:[], 3:[], 4:[]}
 let selectedQuarter=null;
@@ -1348,7 +1351,7 @@ function saveLocalCache(){
     }
   }
 }
-function loadLocalCache(){const raw=localStorage.getItem('fossilPlanDB');if(!raw)return false;try{const d=JSON.parse(raw);DB=d;if(!DB.plans)DB.plans=[];if(!DB.strategies)DB.strategies=[];if(!DB.indicators)DB.indicators=[];if(!DB.alertEmails)DB.alertEmails=[];if(!DB.alertOnStatuses||!DB.alertOnStatuses.length)DB.alertOnStatuses=['ต่ำกว่าแผน','ล่าช้า','วิกฤติ'];if(!DB.users)DB.users=[];if(!DB.allProjects)DB.allProjects=DB.projects||[];if(!DB.progressWindows)DB.progressWindows=null;return true;}catch{return false;}}
+function loadLocalCache(){const raw=localStorage.getItem('fossilPlanDB');if(!raw)return false;try{const d=JSON.parse(raw);DB=d;if(!DB.plans)DB.plans=[];if(!DB.strategies)DB.strategies=[];if(!DB.indicators)DB.indicators=[];if(!DB.alertEmails)DB.alertEmails=[];if(!DB.alertOnStatuses||!DB.alertOnStatuses.length)DB.alertOnStatuses=['ต่ำกว่าแผน','ล่าช้า','วิกฤติ'];if(!DB.users)DB.users=[];if(!DB.userAccessMap)DB.userAccessMap={};if(!DB.allProjects)DB.allProjects=DB.projects||[];if(!DB.progressWindows)DB.progressWindows=null;return true;}catch{return false;}}
 
 // ═══════════════════════════════════════════════════
 // SYNC
@@ -1366,19 +1369,33 @@ async function pullFromSheets(silent=false){
     try{data=JSON.parse(text);}catch{throw new Error('Apps Script ตอบกลับผิดรูปแบบ');}
     if(!data.ok)throw new Error(data.error||'getAll ล้มเหลว');
     if(Array.isArray(data.orgs))DB.orgs=data.orgs;
+    if(Array.isArray(data.users))DB.users=data.users;
+    // ★ FIX: sync สิทธิ์/บทบาทของผู้ใช้ที่ล็อกอินอยู่ให้ตรงกับ Sheet เสมอทุกครั้งที่ sync
+    // (ก่อนหน้านี้ CURRENT_USER.role ถูกอ่านจาก localStorage ตอน login ครั้งเดียว ถ้า admin ไปแก้บทบาท/สิทธิ์
+    //  ทีหลังในหน้าตั้งค่า ผู้ใช้ที่ login ค้างอยู่แล้วจะยังใช้บทบาทเดิมจนกว่าจะ logout/login ใหม่ — ทำให้สิทธิ์ที่เห็นไม่อัพเดตตาม)
+    if(CURRENT_USER&&Array.isArray(data.users)){
+      const _fresh=data.users.find(u=>String(u.id)===String(CURRENT_USER.id));
+      if(_fresh){
+        CURRENT_USER={...CURRENT_USER,role:_fresh.role,organization:_fresh.organization,displayName:_fresh.displayName,email:_fresh.email};
+        try{const raw=localStorage.getItem('fossilSession');const sess=raw?JSON.parse(raw):{};localStorage.setItem('fossilSession',JSON.stringify({...sess,...CURRENT_USER}));}catch(e){}
+        applyRoleUI(); // ★ อัพเดต UI (badge บทบาท, ซ่อน/แสดงแท็บ) ทันทีให้ตรงกับสิทธิ์ล่าสุด ไม่ต้อง logout/login ใหม่
+      }
+    }
+    // ★ RBAC: สิทธิ์รายโครงการจาก Sheet UserAccess — ต้องตั้งค่าก่อนกรอง DB.projects ด้านล่าง (ใช้ myAccessMap())
+    if(data.userAccessMap&&typeof data.userAccessMap==='object')DB.userAccessMap=data.userAccessMap;
     if(Array.isArray(data.projects)){
       // ★ ข้อ 2: เก็บสำเนาโครงการ "ทั้งหมดในระบบ" แบบไม่กรอง ไว้ใช้ในหน้า "โครงการทั้งหมด"
       // (ส่วนล่าง — โครงการของหน่วยงานอื่น) โดยไม่กระทบ DB.projects ที่หน้าอื่น ๆ ยังใช้ scope ตามหน่วยงานเดิม
       DB.allProjects=data.projects;
       // ★ กำหนดขอบเขตโครงการที่มองเห็นได้ ตามบทบาท (role) ของผู้ใช้:
-      //   admin / executive / staff → เห็นทุกโครงการในระบบ
-      //   owner                     → เห็นเฉพาะโครงการที่ถูกกำหนด (assignedProjects) เท่านั้น
-      //   user (บทบาทเดิมก่อนอัพเดต) → ใช้พฤติกรรมเดิม คือ กรองตามหน่วยงาน (organization)
+      //   admin / executive / officer → เห็นทุกโครงการในระบบ
+      //   projectowner                → เห็นเฉพาะโครงการที่ถูกกำหนดสิทธิ์ CanView=true ใน Sheet UserAccess เท่านั้น
+      //   role เดิมก่อนอัพเดตฟีเจอร์นี้  → ใช้พฤติกรรมเดิม คือ กรองตามหน่วยงาน (organization)
       if(canSeeAllProjects()){
         DB.projects=data.projects;
-      } else if(CURRENT_USER&&CURRENT_USER.role==='owner'){
-        const _assigned=myAssignedProjectIds();
-        DB.projects=data.projects.filter(p=>_assigned.includes(String(p.id)));
+      } else if(CURRENT_USER&&CURRENT_USER.role==='projectowner'){
+        const _acc=myAccessMap();
+        DB.projects=data.projects.filter(p=>_acc[String(p.id)]&&_acc[String(p.id)].canView);
       } else {
         const _myOrg=(CURRENT_USER?.organization||'').trim().toLowerCase();
         DB.projects=data.projects.filter(p=>{
@@ -1393,7 +1410,6 @@ async function pullFromSheets(silent=false){
     if(Array.isArray(data.indicators))DB.indicators=data.indicators;
     if(Array.isArray(data.alertEmails))DB.alertEmails=data.alertEmails;
     if(Array.isArray(data.alertOnStatuses)&&data.alertOnStatuses.length)DB.alertOnStatuses=data.alertOnStatuses;
-    if(Array.isArray(data.users))DB.users=data.users;
     if(data.progressWindows)DB.progressWindows=data.progressWindows;
     DB.lastUpdated=Date.now();saveLocalCache();
     setConnStatus('ok','✅ ซิงก์แล้ว '+thaiTime(Date.now()));
@@ -1422,7 +1438,10 @@ async function pushUpdateToSheets(update,project){
     solution:update.solution||'',
     budgetUsed:update.budgetUsed||0,
     files:(update.files||[]).map(f=>({name:f.name,size:f.size,type:f.type,driveLink:f.driveLink||''})),
-    isAdmin:isAdmin()   // ★ ส่ง flag ไปให้ backend ตรวจสอบสิทธิ์อีกชั้น (defense in depth)
+    isAdmin:isAdmin(),   // ★ ส่ง flag ไปให้ backend ตรวจสอบสิทธิ์อีกชั้น (defense in depth)
+    // ★ RBAC: ส่ง userId/userRole ให้ backend เรียก checkEditPermission() ตรวจสิทธิ์รายโครงการอีกชั้น
+    userId:CURRENT_USER?.id||'',
+    userRole:CURRENT_USER?.role||''
   }};
   const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
   const text=await res.text();
@@ -2568,8 +2587,8 @@ function renderSettings(){
   document.getElementById('indicatorList').innerHTML=DB.indicators.length?DB.indicators.map((ind,i)=>`<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><div style="flex:1;padding:7px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;font-size:13px;">${ind}</div><button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger);border:1px solid #fac5c0;" onclick="removeIndicator(${i})">✕</button></div>`).join(''):'<p style="font-size:13px;color:var(--text-muted);">ยังไม่มีเป้าหมาย/ตัวชี้วัด</p>';
   const users=DB.users||[];
   document.getElementById('userList').innerHTML=users.length?users.map(u=>{
-    const _assignedIds=Array.isArray(u.assignedProjects)?u.assignedProjects.map(String):[];
-    const _showAssigned=(u.role==='staff'||u.role==='owner');
+    const _assignedIds=assignedProjectIdsOf(u.id);
+    const _showAssigned=(u.role==='officer'||u.role==='projectowner');
     const _assignedNames=_showAssigned?_assignedIds.map(id=>{const pr=(DB.allProjects||DB.projects||[]).find(x=>String(x.id)===id);return pr?pr.name:null;}).filter(Boolean):[];
     const _assignedHtml=_showAssigned?`<div style="flex-basis:100%;font-size:11.5px;color:var(--text-muted);margin-top:2px;">📁 รับผิดชอบ ${_assignedIds.length} โครงการ${_assignedNames.length?': '+_assignedNames.slice(0,3).join(', ')+(_assignedNames.length>3?` และอีก ${_assignedNames.length-3} โครงการ`:''):''}</div>`:'';
     return `<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;"><div style="flex:1;padding:8px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;font-size:13px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><span class="role-badge ${roleBadgeClass(u.role)}" style="padding:3px 10px;font-size:11.5px;">${roleLabel(u.role)}</span><strong>${u.displayName}</strong><span style="color:var(--text-muted);">(${u.username})</span>${u.organization?`<span style="color:var(--text-muted);">· ${u.organization}</span>`:''}${_assignedHtml}</div><button class="btn btn-sm btn-outline" onclick="editUser('${u.id}')">✏️</button><button class="btn btn-sm" style="background:var(--danger-light);color:var(--danger);border:1px solid #fac5c0;" onclick="deleteUser('${u.id}')">🗑️</button></div>`;
@@ -2611,7 +2630,7 @@ function onURoleChange(){
   const role=document.getElementById('uRole').value;
   const hint=document.getElementById('uRoleHint');if(hint)hint.textContent=ROLE_HINTS[role]||'';
   const grp=document.getElementById('uAssignedProjectsGroup');
-  const needsAssign=(role==='staff'||role==='owner');
+  const needsAssign=(role==='officer'||role==='projectowner');
   if(grp)grp.style.display=needsAssign?'':'none';
   if(needsAssign)renderAssignedProjectCheckboxes();
 }
@@ -2625,17 +2644,46 @@ function renderAssignedProjectCheckboxes(preselectedIds){
   if(!list.length){box.innerHTML='<p style="font-size:12px;color:var(--text-muted);margin:4px;">ไม่พบโครงการ — กด Sync เพื่อโหลดข้อมูลก่อน</p>';return;}
   box.innerHTML=list.map(p=>`<label><input type="checkbox" value="${p.id}" ${_pre.includes(String(p.id))?'checked':''}><span>${p.name}<br><span style="color:var(--text-muted);font-size:11px;">${(p.owners&&p.owners.length>0)?p.owners.join(' / '):(p.owner||'')}</span></span></label>`).join('');
 }
-function openAddUser(){document.getElementById('editUserId').value='';document.getElementById('addUserTitle').textContent='เพิ่มบัญชีผู้ใช้';['uUsername','uDisplayName','uPassword','uOrganization','uEmail','uProjSearch'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('uRole').value='owner';onURoleChange();const pwHint=document.getElementById('uPasswordHint');if(pwHint)pwHint.style.display='none';openModal('addUserModal');}
-function editUser(id){const u=(DB.users||[]).find(x=>x.id===id);if(!u)return;document.getElementById('editUserId').value=id;document.getElementById('addUserTitle').textContent='แก้ไขบัญชีผู้ใช้';document.getElementById('uUsername').value=u.username||'';document.getElementById('uDisplayName').value=u.displayName||'';document.getElementById('uPassword').value='';document.getElementById('uRole').value=u.role||'owner';const org=document.getElementById('uOrganization');if(org)org.value=u.organization||'';const em=document.getElementById('uEmail');if(em)em.value=u.email||'';const pwHint=document.getElementById('uPasswordHint');if(pwHint)pwHint.style.display='block';const ps=document.getElementById('uProjSearch');if(ps)ps.value='';onURoleChange();renderAssignedProjectCheckboxes((u.assignedProjects||[]).map(String));openModal('addUserModal');}
-async function saveUser(){const id=document.getElementById('editUserId').value;const username=document.getElementById('uUsername').value.trim();const displayName=document.getElementById('uDisplayName').value.trim();const password=document.getElementById('uPassword').value;const role=document.getElementById('uRole').value;const organization=document.getElementById('uOrganization')?.value.trim()||'';const email=document.getElementById('uEmail')?.value.trim()||'';if(!username||!displayName||(!id&&!password)){alert('กรุณากรอกให้ครบ');return;}if(password&&password.length<4){alert('รหัสผ่านอย่างน้อย 4 ตัว');return;}if((DB.users||[]).find(u=>u.username===username&&u.id!==id)){alert('ชื่อผู้ใช้นี้มีอยู่แล้ว');return;}
-  // ★ เก็บรายการโครงการที่รับผิดชอบ เฉพาะบทบาท staff/owner เท่านั้น (role อื่นไม่ต้องระบุ)
-  let assignedProjects=[];
-  if(role==='staff'||role==='owner'){
-    assignedProjects=[...document.querySelectorAll('#uAssignedProjectsBox input[type="checkbox"]:checked')].map(cb=>cb.value);
-    if(!assignedProjects.length&&!confirm('ยังไม่ได้เลือกโครงการที่รับผิดชอบให้บัญชีนี้ — ผู้ใช้จะยังไม่เห็น/แก้ไขโครงการใดเลยจนกว่าจะกำหนด ต้องการบันทึกต่อหรือไม่?'))return;
+// ★ ดึงรายการ Project ID ที่ user คนนี้ถูกกำหนดสิทธิ์ไว้แล้ว จาก DB.userAccessMap (Sheet UserAccess)
+function assignedProjectIdsOf(userId){
+  const acc=(DB.userAccessMap&&DB.userAccessMap[String(userId)])||{};
+  return Object.keys(acc).filter(pid=>acc[pid]&&(acc[pid].canView||acc[pid].canEdit));
+}
+function openAddUser(){document.getElementById('editUserId').value='';document.getElementById('addUserTitle').textContent='เพิ่มบัญชีผู้ใช้';['uUsername','uDisplayName','uPassword','uOrganization','uEmail','uProjSearch'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});document.getElementById('uRole').value='projectowner';onURoleChange();const pwHint=document.getElementById('uPasswordHint');if(pwHint)pwHint.style.display='none';openModal('addUserModal');}
+function editUser(id){const u=(DB.users||[]).find(x=>x.id===id);if(!u)return;document.getElementById('editUserId').value=id;document.getElementById('addUserTitle').textContent='แก้ไขบัญชีผู้ใช้';document.getElementById('uUsername').value=u.username||'';document.getElementById('uDisplayName').value=u.displayName||'';document.getElementById('uPassword').value='';document.getElementById('uRole').value=u.role||'projectowner';const org=document.getElementById('uOrganization');if(org)org.value=u.organization||'';const em=document.getElementById('uEmail');if(em)em.value=u.email||'';const pwHint=document.getElementById('uPasswordHint');if(pwHint)pwHint.style.display='block';const ps=document.getElementById('uProjSearch');if(ps)ps.value='';onURoleChange();renderAssignedProjectCheckboxes(assignedProjectIdsOf(u.id));openModal('addUserModal');}
+async function saveUser(){
+  const id=document.getElementById('editUserId').value;const username=document.getElementById('uUsername').value.trim();const displayName=document.getElementById('uDisplayName').value.trim();const password=document.getElementById('uPassword').value;const role=document.getElementById('uRole').value;const organization=document.getElementById('uOrganization')?.value.trim()||'';const email=document.getElementById('uEmail')?.value.trim()||'';
+  if(!username||!displayName||(!id&&!password)){alert('กรุณากรอกให้ครบ');return;}
+  if(password&&password.length<4){alert('รหัสผ่านอย่างน้อย 4 ตัว');return;}
+  if((DB.users||[]).find(u=>u.username===username&&u.id!==id)){alert('ชื่อผู้ใช้นี้มีอยู่แล้ว');return;}
+  // ★ เก็บรายการโครงการที่รับผิดชอบ เฉพาะบทบาท officer/projectowner เท่านั้น (role อื่นจะเคลียร์สิทธิ์เดิมทิ้ง)
+  const needsAssign=(role==='officer'||role==='projectowner');
+  let selectedProjectIds=[];
+  if(needsAssign){
+    selectedProjectIds=[...document.querySelectorAll('#uAssignedProjectsBox input[type="checkbox"]:checked')].map(cb=>cb.value);
+    if(!selectedProjectIds.length&&!confirm('ยังไม่ได้เลือกโครงการที่รับผิดชอบให้บัญชีนี้ — ผู้ใช้จะยังไม่เห็น/แก้ไขโครงการใดเลยจนกว่าจะกำหนด ต้องการบันทึกต่อหรือไม่?'))return;
   }
-  const payload={id:id||undefined,username,displayName,password:password||undefined,role,organization,email,assignedProjects};try{const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveUser',data:payload})});const json=await res.json();if(!json.ok)throw new Error(json.error||'บันทึกล้มเหลว');closeModal('addUserModal');showToast('บันทึกบัญชีผู้ใช้แล้ว ✅');await pullFromSheets(true);renderSettings();}catch(e){showToast('บันทึกล้มเหลว: '+e.message,'red');}}
-async function deleteUser(id){if(!confirm('ลบบัญชีนี้?'))return;try{const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'deleteUser',data:{id}})});const json=await res.json();if(!json.ok)throw new Error(json.error||'ลบล้มเหลว');DB.users=(DB.users||[]).filter(u=>u.id!==id);saveLocalCache();renderSettings();showToast('ลบบัญชีแล้ว');}catch(e){showToast('ลบล้มเหลว: '+e.message,'red');}}
+  const payload={id:id||undefined,username,displayName,password:password||undefined,role,organization,email};
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveUser',data:payload})});
+    const json=await res.json();
+    if(!json.ok)throw new Error(json.error||'บันทึกล้มเหลว');
+    // ★ RBAC: บันทึก/ล้างสิทธิ์รายโครงการใน Sheet UserAccess เสมอ (apiSaveUserAccess ลบของเดิมทั้งหมดแล้วเขียนใหม่)
+    // — role ที่ไม่ต้องใช้สิทธิ์รายโครงการ (admin/executive) จะส่ง accesses ว่าง เพื่อล้างสิทธิ์เดิมถ้ามี
+    const uid=id||json.id;
+    if(uid){
+      const accesses=selectedProjectIds.map(pid=>({projectId:pid,canView:true,canEdit:true}));
+      const accRes=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveUserAccess',data:{userId:uid,accesses,assignedBy:CURRENT_USER?.username||''}})});
+      const accJson=await accRes.json();
+      if(!accJson.ok)console.warn('บันทึกสิทธิ์รายโครงการไม่สำเร็จ:',accJson.error);
+    }
+    closeModal('addUserModal');showToast('บันทึกบัญชีผู้ใช้แล้ว ✅');await pullFromSheets(true);renderSettings();
+  }catch(e){showToast('บันทึกล้มเหลว: '+e.message,'red');}
+}
+async function deleteUser(id){if(!confirm('ลบบัญชีนี้?'))return;try{const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'deleteUser',data:{id}})});const json=await res.json();if(!json.ok)throw new Error(json.error||'ลบล้มเหลว');
+  // ★ ล้างสิทธิ์รายโครงการของบัญชีที่ถูกลบด้วย (Sheet UserAccess)
+  try{await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'saveUserAccess',data:{userId:id,accesses:[]}})});}catch(e2){}
+  DB.users=(DB.users||[]).filter(u=>u.id!==id);saveLocalCache();renderSettings();showToast('ลบบัญชีแล้ว');}catch(e){showToast('ลบล้มเหลว: '+e.message,'red');}}
 
 // ═══════════════════════════════════════════════════
 // EXPORT / IMPORT
